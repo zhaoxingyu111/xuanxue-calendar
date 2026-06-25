@@ -44,6 +44,8 @@ canvas{display:block}
   <button id="play" class="act">⏸ 暂停</button>
   <label>速度</label><input id="speed" type="range" min="1" max="60" step="1" value="14">
   <span id="spd">14 天/秒</span>
+  <button id="zin" aria-label="放大">＋ 放大</button>
+  <button id="zout" aria-label="缩小">－ 缩小</button>
   <button id="today">回到今天</button>
   <button id="topview">俯视</button>
 </div>
@@ -83,6 +85,9 @@ labelRenderer.domElement.style.pointerEvents='none';
 document.getElementById('app').appendChild(labelRenderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping=true; controls.dampingFactor=0.08;
+controls.zoomSpeed=3.2; controls.zoomToCursor=true; controls.rotateSpeed=0.95;
+controls.minDistance=18; controls.maxDistance=2000;
+function zoomBy(f){const off=camera.position.clone().sub(controls.target);off.multiplyScalar(f);const d=off.length();if(d>=controls.minDistance&&d<=controls.maxDistance)camera.position.copy(controls.target).add(off);controls.update();}
 
 const loader = new THREE.TextureLoader();
 const T = u => { const t=loader.load(TEX+u); t.colorSpace=THREE.SRGBColorSpace; return t; };
@@ -176,6 +181,8 @@ function loop(){requestAnimationFrame(loop);
 
 $('play').onclick=function(){playing=!playing;this.textContent=playing?'⏸ 暂停':'▶ 播放';this.classList.toggle('act',playing);};
 $('speed').oninput=function(){speed=+this.value;$('spd').textContent=speed+' 天/秒';};
+$('zin').onclick=()=>zoomBy(0.6);
+$('zout').onclick=()=>zoomBy(1/0.6);
 $('today').onclick=()=>{simDate=new Date(Date.UTC(2026,5,26,12,0,0));prevElon=null;};
 $('topview').onclick=()=>{camera.position.set(0,320,0.1);controls.update();};
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);labelRenderer.setSize(innerWidth,innerHeight);});
