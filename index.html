@@ -157,6 +157,7 @@ function detail(){const m=DATA[keys[ci]];const d=m.days.find(x=>x.day===sel)||m.
    <div class="wr"><b>☿ 水星：</b>${d.rtxt}</div>
    <div class="wr"><b>${d.planetIcon} ${d.planet}日：</b>幸运色 ${d.westColor} · 宜 ${d.westAct}</div>
    <div class="vd">⚖️ 中西合参：${d.verdict}</div>
+   ${d.retro?'<a href="retrograde.html" style="display:block;text-align:center;margin-top:6px;color:#ffd9a8;font-size:12px;text-decoration:underline">🔭 看 3D 演示：水星为什么逆行</a>':''}
  </div>
  <details class="pro"><summary>看专业信息（干支·建除·值神·吉时等）</summary>
   <div class="protb">
@@ -230,7 +231,8 @@ function renderFortune(){
  <div class="vh2">&#9888;&#65039; 务必避开的日子（大事改期）</div>
  <div class="card" style="display:flex;flex-wrap:wrap">${avd}</div>
  <div class="vh2">&#9791; 西方·水星逆行期（沟通签约小心）</div>
- <div class="card">${retroRows}</div>
+ <div class="card">${retroRows}
+   <a href="retrograde.html" style="display:block;text-align:center;margin-top:8px;background:#2c3e6b;color:#fff;border-radius:20px;padding:9px;font-size:13px;font-weight:700;text-decoration:none">&#128301; 打开 3D 真实天文演示（看水星为什么"倒退"）</a></div>
  <div class="vh2">&#127765; 西方·月相（🌑新月许愿 / 🌕满月收获）</div>
  <div class="card" style="display:flex;flex-wrap:wrap">${moons.join('')}</div>`;
 }

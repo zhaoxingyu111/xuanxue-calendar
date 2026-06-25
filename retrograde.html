@@ -1,0 +1,237 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#05060d">
+<title>水星逆行 · 真实天文 3D 模拟</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#05060d;font-family:-apple-system,"PingFang SC","Hiragino Sans GB",sans-serif;color:#e8e8f0}
+#app{position:fixed;inset:0}
+canvas{display:block}
+.panel{position:fixed;background:rgba(12,14,28,.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 14px}
+#info{top:12px;left:12px;max-width:260px}
+#info h1{font-size:15px;font-weight:700;letter-spacing:1px;margin-bottom:6px;color:#fff}
+#date{font-size:22px;font-weight:800;color:#ffd27d;letter-spacing:1px}
+#sub{font-size:11px;color:#9aa0c0;margin-top:2px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:5px 12px;border-radius:20px;margin-top:9px}
+.badge.g{background:rgba(46,139,87,.22);color:#5fd497;border:1px solid rgba(46,139,87,.5)}
+.badge.r{background:rgba(192,57,43,.25);color:#ff8a7a;border:1px solid rgba(192,57,43,.6)}
+#retroList{margin-top:10px;font-size:11.5px;color:#aab0d0;line-height:1.7}
+#retroList .w{display:block;padding:2px 0}
+#retroList .w.now{color:#ff8a7a;font-weight:700}
+.legend{position:fixed;top:12px;right:12px;font-size:11.5px;color:#aab0d0;line-height:1.9}
+.legend .d{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
+#ctrl{bottom:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:94vw}
+#ctrl button{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:7px 12px;font-size:13px;cursor:pointer}
+#ctrl button:hover{background:rgba(255,255,255,.16)}
+#ctrl button.act{background:#7d3c98;border-color:#7d3c98}
+#ctrl label{font-size:12px;color:#9aa0c0}
+#ctrl input[type=range]{width:130px;accent-color:#ffd27d}
+#spd{font-size:12px;color:#ffd27d;min-width:78px;text-align:right}
+#loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;color:#9aa0c0;background:#05060d;z-index:10}
+.hint{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);font-size:11px;color:#6a7090}
+</style></head><body>
+<div id="app"></div>
+<div id="loading">正在加载真实星历与 3D 引擎…</div>
+<div class="panel" id="info">
+  <h1>☿ 水星逆行 · 真实天文模拟</h1>
+  <div id="date">—</div>
+  <div id="sub">真实 VSOP87 星历 · 地心黄经实时判定</div>
+  <div id="status" class="badge g">顺行</div>
+  <div id="retroList"></div>
+</div>
+<div class="panel legend">
+  <div><span class="d" style="background:#ffcf5a"></span>太阳</div>
+  <div><span class="d" style="background:#9aa7b5"></span>水星</div>
+  <div><span class="d" style="background:#e8c07a"></span>金星</div>
+  <div><span class="d" style="background:#4a90d9"></span>地球</div>
+  <div><span class="d" style="background:#d9603a"></span>火星</div>
+  <div><span class="d" style="background:#ff5a4a"></span>视线→视位置</div>
+</div>
+<div class="hint">拖动旋转 · 滚轮缩放 · 双指缩放</div>
+<div class="panel" id="ctrl">
+  <button id="play" class="act">⏸ 暂停</button>
+  <label>速度</label><input id="speed" type="range" min="1" max="60" step="1" value="14">
+  <span id="spd">14 天/秒</span>
+  <button id="today">回到今天</button>
+  <button id="topview">俯视</button>
+</div>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/astronomy-engine@2.1.19/astronomy.browser.min.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const A = window.Astronomy;
+const SCALE = 90;               // AU -> 场景单位
+const PLANETS = [
+  {body:A.Body.Mercury, name:'水星', color:0x9aa7b5, size:1.5, period:88},
+  {body:A.Body.Venus,   name:'金星', color:0xe8c07a, size:2.4, period:225},
+  {body:A.Body.Earth,   name:'地球', color:0x4a90d9, size:2.6, period:365},
+  {body:A.Body.Mars,    name:'火星', color:0xd9603a, size:2.0, period:687},
+];
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 5000);
+camera.position.set(70, 120, 200);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+document.getElementById('app').appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+
+// 星空背景
+const starGeo = new THREE.BufferGeometry();
+const sp = [];
+for(let i=0;i<2500;i++){
+  const r=1500+Math.random()*1500, th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+  sp.push(r*Math.sin(ph)*Math.cos(th), r*Math.cos(ph), r*Math.sin(ph)*Math.sin(th));
+}
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp,3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff, size:1.6, sizeAttenuation:false, opacity:.85, transparent:true})));
+
+// 太阳
+const sun = new THREE.Mesh(new THREE.SphereGeometry(7,32,32), new THREE.MeshBasicMaterial({color:0xffcf5a}));
+scene.add(sun);
+const sunLight = new THREE.PointLight(0xffffff, 2.4, 0, 0); scene.add(sunLight);
+scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+// 太阳光晕
+const halo = new THREE.Mesh(new THREE.SphereGeometry(11,32,32), new THREE.MeshBasicMaterial({color:0xffcf5a, transparent:true, opacity:.12}));
+scene.add(halo);
+
+// 真实坐标：日心黄经直角坐标(AU) -> 场景
+function helioPos(body, time){
+  const ec = A.Ecliptic(A.HelioVector(body, time));   // ecliptic cartesian (AU)
+  return new THREE.Vector3(ec.vec.x*SCALE, ec.vec.z*SCALE, -ec.vec.y*SCALE);
+}
+// 地心黄经(度)
+function geoElon(time){
+  return A.Ecliptic(A.GeoVector(A.Body.Mercury, time, true)).elon;
+}
+
+// 行星 + 真实轨道线
+const meshes = {};
+for(const p of PLANETS){
+  const m = new THREE.Mesh(new THREE.SphereGeometry(p.size,24,24),
+            new THREE.MeshStandardMaterial({color:p.color, roughness:.7, metalness:.1, emissive:p.color, emissiveIntensity:.12}));
+  scene.add(m); meshes[p.name]=m;
+  // 轨道
+  const pts=[]; const t0=new Date(Date.UTC(2026,0,1));
+  for(let d=0; d<=p.period; d+=Math.max(1,p.period/240)){
+    const t = A.MakeTime(new Date(t0.getTime()+d*86400000));
+    pts.push(helioPos(p.body, t));
+  }
+  pts.push(pts[0]);
+  const og = new THREE.BufferGeometry().setFromPoints(pts);
+  scene.add(new THREE.Line(og, new THREE.LineBasicMaterial({color:p.color, transparent:true, opacity:.35})));
+}
+
+// 黄道带参考环(投影面)
+const RR=240;
+const ringPts=[]; for(let i=0;i<=128;i++){const a=i/128*Math.PI*2; ringPts.push(new THREE.Vector3(RR*Math.cos(a),0,RR*Math.sin(a)));}
+scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ringPts), new THREE.LineBasicMaterial({color:0x555a7a, transparent:true, opacity:.4})));
+
+// 视线 + 视位置标记
+const sightMat = new THREE.LineBasicMaterial({color:0xff5a4a});
+const sightGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+const sight = new THREE.Line(sightGeo, sightMat); scene.add(sight);
+const appMark = new THREE.Mesh(new THREE.SphereGeometry(2.4,16,16), new THREE.MeshBasicMaterial({color:0x5fd497}));
+scene.add(appMark);
+const appTrailGeo = new THREE.BufferGeometry();
+let appTrail=[];
+const appTrail3 = new THREE.Line(appTrailGeo, new THREE.LineBasicMaterial({color:0xff5a4a, transparent:true, opacity:.5}));
+scene.add(appTrail3);
+
+// 射线与球(半径RR)交点
+function rayHit(E, dir){
+  const f=E.clone(); const b=2*f.dot(dir); const c=f.dot(f)-RR*RR;
+  const disc=Math.max(0,b*b-4*c); const s=(-b+Math.sqrt(disc))/2;
+  return E.clone().add(dir.clone().multiplyScalar(s));
+}
+
+// 计算 2026 水逆区间(用真实星历扫描)
+function computeRetro(){
+  const out=[]; let inR=false, start=null, prev=null;
+  for(let d=0; d<365; d++){
+    const t=A.MakeTime(new Date(Date.UTC(2026,0,1)+0+d*86400000));
+    const e=geoElon(t);
+    if(prev!==null){
+      let dl=e-prev; if(dl>180)dl-=360; if(dl<-180)dl+=360;
+      const r=dl<0;
+      if(r&&!inR){inR=true;start=new Date(Date.UTC(2026,0,1)+d*86400000);}
+      if(!r&&inR){inR=false;out.push([start,new Date(Date.UTC(2026,0,1)+d*86400000)]);}
+    }
+    prev=e;
+  }
+  if(inR)out.push([start,new Date(Date.UTC(2026,11,31))]);
+  return out;
+}
+const RETRO = computeRetro();
+const fmt=dt=>`${dt.getUTCMonth()+1}/${dt.getUTCDate()}`;
+
+// 状态
+let simDate = new Date(Date.UTC(2026,5,26,12,0,0));
+let playing=true, speed=14, prevElon=null, retroAvg=0;
+const $=id=>document.getElementById(id);
+
+function updateRetroList(){
+  $('retroList').innerHTML = '<b style="color:#cfd4ee">2026 水逆期：</b>' + RETRO.map(w=>{
+    const now = simDate>=w[0] && simDate<=w[1];
+    return `<span class="w ${now?'now':''}">${now?'▶ ':'· '}${fmt(w[0])} → ${fmt(w[1])}</span>`;
+  }).join('');
+}
+
+function render(){
+  const t = A.MakeTime(simDate);
+  // 行星位置
+  for(const p of PLANETS) meshes[p.name].position.copy(helioPos(p.body,t));
+  const E = meshes['地球'].position, M = meshes['水星'].position;
+  // 视线 + 视位置(地球望向水星, 投到参考球)
+  const dir = M.clone().sub(E).normalize();
+  const Ap = rayHit(E, dir);
+  sightGeo.setFromPoints([E.clone(), Ap]);
+  appMark.position.copy(Ap);
+  // 逆行判定(真实地心黄经)
+  const elon = geoElon(t);
+  let retro=false;
+  if(prevElon!==null){ let dl=elon-prevElon; if(dl>180)dl-=360; if(dl<-180)dl+=360; retroAvg=retroAvg*0.9+dl*0.1; retro=dl<0; }
+  prevElon=elon;
+  const col = retro?0xff5a4a:0x5fd497;
+  sightMat.color.setHex(col); appMark.material.color.setHex(col);
+  // 视位置轨迹
+  appTrail.push(Ap.clone()); if(appTrail.length>120)appTrail.shift();
+  appTrailGeo.setFromPoints(appTrail);
+  // UI
+  $('date').textContent = `${simDate.getUTCFullYear()}-${String(simDate.getUTCMonth()+1).padStart(2,'0')}-${String(simDate.getUTCDate()).padStart(2,'0')}`;
+  const sb=$('status');
+  if(retro){sb.className='badge r';sb.innerHTML='☿ 逆行（视位置在倒退）';}
+  else{sb.className='badge g';sb.innerHTML='☿ 顺行（正常前进）';}
+}
+
+let updTimer=0;
+function loop(){
+  requestAnimationFrame(loop);
+  if(playing){ simDate = new Date(simDate.getTime() + speed*86400000/60); }
+  render();
+  if(++updTimer%15===0) updateRetroList();
+  controls.update();
+  halo.scale.setScalar(1+0.04*Math.sin(Date.now()*0.002));
+  renderer.render(scene,camera);
+}
+
+// 控制
+$('play').onclick=function(){playing=!playing;this.textContent=playing?'⏸ 暂停':'▶ 播放';this.classList.toggle('act',playing);};
+$('speed').oninput=function(){speed=+this.value;$('spd').textContent=speed+' 天/秒';};
+$('today').onclick=()=>{simDate=new Date(Date.UTC(2026,5,26,12,0,0));appTrail=[];prevElon=null;};
+$('topview').onclick=()=>{camera.position.set(0,300,0.1);controls.update();};
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+
+document.getElementById('loading').style.display='none';
+updateRetroList();
+loop();
+</script></body></html>
