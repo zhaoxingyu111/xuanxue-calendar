@@ -1,0 +1,15 @@
+{
+  "name": "美股BTC市场日历",
+  "short_name": "市场日历",
+  "start_url": "./market.html",
+  "display": "standalone",
+  "background_color": "#0c1018",
+  "theme_color": "#0c1018",
+  "icons": [
+    {
+      "src": "./micon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
